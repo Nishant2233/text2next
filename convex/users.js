@@ -9,32 +9,42 @@ export const createUser = mutation({
       .filter((q) => q.eq(q.field('email'), args.email))
       .collect();
 
-    console.log(user);
-
     if (user.length === 0) {
+      // Create new user
       const result = await ctx.db.insert('users', {
         name: args.name,
         email: args.email,
         picture: args.picture,
         uid: args.uid,
       });
-      console.log(result);
+      return result;
+    } else {
+      // Update existing user's info
+      const existingUser = user[0];
+      await ctx.db.patch(existingUser._id, {
+        name: args.name,
+        picture: args.picture,
+      });
+      return existingUser;
     }
   },
-})
+});
 
-export const GetUser=query({
-    args:{
-        email:v.string()
-    },
-    handler:async(ctx,args)=>{
-        const user = await ctx.db
-        .query('users')
-        .filter((q) => q.eq(q.field('email'), args.email))
-        .collect();
-        return user[0];
-    }
-})
+export const GetUser = query({
+  args: {
+    email: v.string()
+  },
+  handler: async (ctx, args) => {
+    if (!args.email) return null;
+    
+    const user = await ctx.db
+      .query('users')
+      .filter((q) => q.eq(q.field('email'), args.email))
+      .collect();
+
+    return user[0] || null;
+  }
+});
 
 
 

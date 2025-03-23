@@ -11,35 +11,47 @@ import { api } from '@/convex/_generated/api'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import AppSideBar from '@/components/custom/AppSideBar'
 
-
-
-
 function Provider({ children }) {
   const [messages, setMessages] = useState([]);
-  const [userDetail, setUserDetail] = useState();
+  const [userDetail, setUserDetail] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const convex = useConvex();
 
   useEffect(() => {
     IsAuthenicated();
   }, [])
 
-  const IsAuthenicated = async () => {
-    if (typeof window !== undefined) {
-
-      const user = JSON.parse(localStorage.getItem('user'));
-      const result = await convex.query(api.users.GetUser, {
-        email: user?.email
-      })
-      setUserDetail(result);
-      console.log(result);
+  // Close sidebar when user signs out
+  useEffect(() => {
+    if (!userDetail) {
+      setSidebarOpen(false);
     }
+  }, [userDetail]);
 
+  const IsAuthenicated = async () => {
+    if (typeof window !== 'undefined') {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (user?.email) {
+        try {
+          const result = await convex.query(api.users.GetUser, {
+            email: user.email
+          });
+          setUserDetail(result);
+          // Only open sidebar if user is authenticated
+          setSidebarOpen(!!result);
+        } catch (error) {
+          console.error("Error fetching user:", error);
+          localStorage.removeItem('user');
+          setUserDetail(null);
+          setSidebarOpen(false);
+        }
+      }
+    }
   };
 
   return (
     <div>
       <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID_KEY}>
-
         <UserDetailContext.Provider value={{ userDetail, setUserDetail }}>
           <MessagesContext.Provider value={{ messages, setMessages }}>
             <NextThemesProvider
@@ -48,10 +60,13 @@ function Provider({ children }) {
               enableSystem
               disableTransitionOnChange>
               <Header />
-              <SidebarProvider defaultOpen={false} >
+              <SidebarProvider 
+                defaultOpen={false} 
+                open={sidebarOpen}
+                onOpenChange={setSidebarOpen}
+              >
                 <AppSideBar />
                 {children}
-
               </SidebarProvider>
             </NextThemesProvider>
           </MessagesContext.Provider>

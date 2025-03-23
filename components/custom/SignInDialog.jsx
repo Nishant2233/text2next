@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useContext } from "react";
+import React, { useContext, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,19 +13,26 @@ import Lookup from "@/data/Lookup";
 import { Button } from "../ui/button";
 import { useGoogleLogin } from "@react-oauth/google";
 import { UserDetailContext } from "@/contex/UserDetailContext";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import uuid4 from "uuid4";
+import { Loader2 } from "lucide-react";
+import { useConvex } from "convex/react";
 
 function SignInDialog({ openDialog, closeDialog }) {
-  const { userDetail, setUserDetail } = useContext(UserDetailContext);
-
+  const { setUserDetail } = useContext(UserDetailContext);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const createUser = useMutation(api.users.createUser);
+  const convex = useConvex();
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
-        console.log("Google Token Response:", tokenResponse);
+        setIsLoading(true);
+        setError("");
+        
+        // Get user info from Google
         const userInfo = await axios.get(
           "https://www.googleapis.com/oauth2/v3/userinfo",
           {
@@ -33,55 +40,92 @@ function SignInDialog({ openDialog, closeDialog }) {
           }
         );
 
-        console.log("Google User Info:", userInfo.data);
         const user = userInfo.data;
 
-        await createUser({
-          name: user?.name,
-          email: user?.email,
-          picture: user?.picture,
-          uid: uuid4(),
+        // Try to get existing user first
+        const existingUser = await convex.query(api.users.GetUser, { 
+          email: user.email 
         });
 
-        if (typeof window !== "undefined") {
-          localStorage.setItem('user', JSON.stringify(user));
-; // ✅ fixed typo
+        let finalUser;
+        if (existingUser) {
+          // Use existing user
+          finalUser = existingUser;
+        } else {
+          // Create new user in Convex
+          finalUser = await createUser({
+            name: user?.name,
+            email: user?.email,
+            picture: user?.picture,
+            uid: uuid4(),
+          });
         }
 
-        setUserDetail(userInfo?.data);
-        closeDialog(false); // Close dialog after login success
+        if (!finalUser) {
+          throw new Error("Failed to get user data");
+        }
+
+        // Store user in localStorage
+        if (typeof window !== "undefined") {
+          localStorage.setItem('user', JSON.stringify(finalUser));
+        }
+
+        // Update context
+        setUserDetail(finalUser);
+        closeDialog(false);
       } catch (error) {
         console.error("Google Login Error:", error);
+        setError("Failed to sign in. Please try again.");
+      } finally {
+        setIsLoading(false);
       }
     },
-    onError: (errorResponse) =>
-      console.error("Google Auth Failed:", errorResponse),
+    onError: (errorResponse) => {
+      console.error("Google Auth Failed:", errorResponse);
+      setError("Failed to authenticate with Google. Please try again.");
+      setIsLoading(false);
+    },
   });
 
   return (
-    <Dialog open={openDialog} onOpenChange={closeDialog}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Sign In</DialogTitle>
-          <DialogDescription>
-            {Lookup?.SIGNIN_AGREEMENT_TEXT} {/* ✅ only text inside */}
+    <Dialog open={openDialog} onOpenChange={(open) => !isLoading && closeDialog(open)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="space-y-3">
+          <DialogTitle className="text-center">Sign In</DialogTitle>
+          <DialogDescription className="text-center">
+            {Lookup?.SIGNIN_AGREEMENT_TEXT}
           </DialogDescription>
         </DialogHeader>
 
-        {/* ✅ Moved div OUTSIDE DialogDescription */}
-        <div className="flex flex-col items-center justify-center gap-3 mt-4">
-          <div className="text-center">
-            <h2 className="font-bold text-2xl text-white">
+        <div className="flex flex-col items-center justify-center gap-6 py-4">
+          <div className="text-center space-y-2">
+            <h2 className="font-bold text-xl sm:text-2xl text-white">
               {Lookup.SIGNIN_HEADING}
             </h2>
-            <p className="mt-2">{Lookup.SIGNIN_SUBHEADING}</p>
+            <p className="text-sm text-gray-400">
+              {Lookup.SIGNIN_SUBHEADING}
+            </p>
           </div>
 
+          {error && (
+            <p className="text-sm text-red-500 text-center">
+              {error}
+            </p>
+          )}
+
           <Button
-            className="bg-blue-500 text-white hover:bg-blue-400 mt-3"
-            onClick={googleLogin}
+            className="w-full max-w-sm bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            onClick={() => !isLoading && googleLogin()}
+            disabled={isLoading}
           >
-            Sign In With Google
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              "Sign In With Google"
+            )}
           </Button>
         </div>
       </DialogContent>

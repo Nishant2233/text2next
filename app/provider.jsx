@@ -36,9 +36,16 @@ function Provider({ children }) {
           const result = await convex.query(api.users.GetUser, {
             email: user.email
           });
-          setUserDetail(result);
-          // Only open sidebar if user is authenticated
-          setSidebarOpen(!!result);
+          if (result) {
+            setUserDetail(result);
+            // Keep sidebar closed by default
+            setSidebarOpen(false);
+          } else {
+            // If user not found in database, clear local storage
+            localStorage.removeItem('user');
+            setUserDetail(null);
+            setSidebarOpen(false);
+          }
         } catch (error) {
           console.error("Error fetching user:", error);
           localStorage.removeItem('user');

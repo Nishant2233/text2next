@@ -96,9 +96,13 @@ function ChatView() {
   <div key={index}
   className='p-3 rounded-lg mb-2 flex gap-2 items-start'
   style={{backgroundColor:Colors.CHAT_BACKGROUND}}>
-    {msg?.role=='user'&&
-    <Image src={userDetail?.picture} alt='userImage' width={30} height={30} className='rounded-full' />}
-    <h2>{msg.Content}</h2>
+    {msg?.role=='user' && userDetail?.picture &&
+  <Image src={userDetail.picture} alt='userImage' width={30} height={30} className='rounded-full' />
+}
+{msg?.role=='user' && !userDetail?.picture &&
+  <div className='w-[30px] h-[30px] rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold'>U</div>
+}
+<h2>{msg.Content}</h2>
   
   </div>
 ))}

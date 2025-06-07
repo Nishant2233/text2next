@@ -102,7 +102,7 @@ function ChatView() {
 {msg?.role=='user' && !userDetail?.picture &&
   <div className='w-[30px] h-[30px] rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold'>U</div>
 }
-<h2>{msg.Content}</h2>
+    <h2>{msg.Content}</h2>
   
   </div>
 ))}
